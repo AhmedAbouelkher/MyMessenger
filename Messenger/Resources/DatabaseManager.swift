@@ -14,6 +14,7 @@ final class DatabaseManager {
     
     private var database = Database.database().reference()
     
+    
     public static func createDataBaseEmail(with email: String) -> String {
         let notAllowedChars: [String] = [ ".",  "#", "@", "[", "]" ]
         var safeEmail = email
@@ -22,7 +23,6 @@ final class DatabaseManager {
         }
         return safeEmail
     }
-
 }
 
 //MARK: - Account Managment
@@ -43,16 +43,74 @@ extension DatabaseManager{
     }
     
     /// Creates a new user database profile.
-    public func createNewUser(with user: ChatAppUser) -> Void {
+    public func createNewUser(with user: ChatAppUser, completion: @escaping (Bool) -> Void ) -> Void {
         database.child(user.databaseEmail).setValue([
             "first_name":user.firstName,
             "last_name": user.lastName,
             "email": user.email,
             "uid": user.uid
-        ])
+        ]) { error, _ in
+            guard error == nil else {
+                print("failed ot write to database")
+                completion(false)
+                return
+            }
+
+            self.database.child("users").observeSingleEvent(of: .value, with: { snapshot in
+                if var usersCollection = snapshot.value as? [[String: String]] {
+                    // append to user dictionary
+                    let newElement = [
+                        "name": user.firstName + " " + user.lastName,
+                        "email": user.databaseEmail
+                    ]
+                    usersCollection.append(newElement)
+
+                    self.database.child("users").setValue(usersCollection, withCompletionBlock: { error, _ in
+                        guard error == nil else {
+                            completion(false)
+                            return
+                        }
+
+                        completion(true)
+                    })
+                }
+                else {
+                    // create that array
+                    let newCollection: [[String: String]] = [
+                        [
+                            "name": user.firstName + " " + user.lastName,
+                            "email": user.databaseEmail
+                        ]
+                    ]
+                    self.database.child("users").setValue(newCollection, withCompletionBlock: { error, _ in
+                        guard error == nil else {
+                            completion(false)
+                            return
+                        }
+
+                        completion(true)
+                    })
+                }
+            })
+        }
+    }
+    typealias GettingAllUsersCompletion = (Result<[[String:String]], DatabaseError>) -> Void
+    
+    /// Get all users in the database and show them to the user, using `(Result<[String:String], DatabaseError>) -> Void` compelition clouser
+    public func getAllUsers(completion: @escaping GettingAllUsersCompletion) {
+        database.child("users").observeSingleEvent(of: .value) { snapshot in
+            guard let value = snapshot.value as? [[String: String]] else {
+                completion(.failure(.failedToFetch))
+                return
+            }
+            completion(.success(value))
+        }
     }
     
-
+    
+    public enum DatabaseError: Error {
+        case failedToFetch
+    }
 }
 
 struct ChatAppUser {

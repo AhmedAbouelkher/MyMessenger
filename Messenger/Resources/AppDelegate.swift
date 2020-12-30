@@ -78,14 +78,16 @@ extension AppDelegate : GIDSignInDelegate {
                                            firstName: firstName,
                                            lastName: lastName,
                                            email: email)
-                DatabaseManager.shared.createNewUser(with: chatUser)
+                DatabaseManager.shared.createNewUser(with: chatUser) { result in
+                    print("Creating new user resaults: \(result)")
+                }
                 
                 //Uploading User Image
                 if !user.profile.hasImage { return }
                 let imageUrl = user.profile.imageURL(withDimension: 200)
                 URLSession.shared.dataTask(with: imageUrl!) { (data, _, error) in
                     guard error == nil , let data = data else {
-                        print("Error while downloading Google image: \(error?.localizedDescription ?? "")")
+                        print("Error while downloading Google image: \(error?.localizedDescription ?? "nil error")")
                         return
                     }
                     StorageManager.shared.uploadProfilePicture(with: data, fileName: chatUser.imageUrl) { result in

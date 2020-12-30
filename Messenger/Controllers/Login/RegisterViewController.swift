@@ -217,7 +217,9 @@ class RegisterViewController: UIViewController {
                                             lastName: lastName,
                                             email: email)
                 
-                strongSelf.databaseManager.createNewUser(with: chatUser)
+                DatabaseManager.shared.createNewUser(with: chatUser) { success in
+                    return
+                }
                 
                 //Uploading User Image
                 if let image = strongSelf.imageView.image, let data = image.pngData() {

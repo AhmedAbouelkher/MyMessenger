@@ -7,8 +7,11 @@
 //
 
 import UIKit
+import JGProgressHUD
 
 class NewConversationViewController: UIViewController {
+    
+    private let progressIndicator = JGProgressHUD(style: .dark)
     
     private let tableView: UITableView = {
         let table = UITableView()
@@ -21,6 +24,7 @@ class NewConversationViewController: UIViewController {
        let search = UISearchBar()
         search.placeholder = "Search for Users..."
         search.autocorrectionType = .no
+        search.autocapitalizationType = .none
         return search
     }()
     
@@ -33,6 +37,12 @@ class NewConversationViewController: UIViewController {
         label.isHidden = true
         return label
     }()
+    
+    
+    private var results = [[String: String]]()
+    private var fetchedUsers = [[String: String]]()
+    private var hasFetched = false
+    
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -44,7 +54,6 @@ class NewConversationViewController: UIViewController {
                                                             style: .done,
                                                             target: self,
                                                             action: #selector(didTapDone))
-        
         //Delegates
         tableView.delegate = self
         tableView.dataSource = self
@@ -52,11 +61,16 @@ class NewConversationViewController: UIViewController {
         
         //Adding subViews
         view.addSubview(tableView)
+        view.addSubview(noResultsLabel)
     }
     
     override func viewDidLayoutSubviews() {
         searchBar.becomeFirstResponder()
         tableView.frame = view.bounds
+        noResultsLabel.frame = CGRect(x: view.width/4,
+                                      y: (view.height-200)/2,
+                                      width: view.width/2,
+                                      height: 200)
     }
     
     @objc private func didTapDone(){
@@ -68,18 +82,66 @@ class NewConversationViewController: UIViewController {
 extension NewConversationViewController : UITableViewDataSource, UITableViewDelegate {
     
     func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
-        return 0
+        return results.count
     }
     
     func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
         let cell = tableView.dequeueReusableCell(withIdentifier: "cell", for: indexPath)
+        cell.textLabel?.text = results[indexPath.row]["name"]
         return cell
     }
 }
 
 extension NewConversationViewController : UISearchBarDelegate {
     func searchBarSearchButtonClicked(_ searchBar: UISearchBar) {
+        guard let searchTerm = searchBar.text, !searchTerm.replacingOccurrences(of: " ", with: "").isEmpty else {
+            print("Invalid Search term")
+            return
+        }
         searchBar.resignFirstResponder()
-        print(searchBar.text!)
+        progressIndicator.show(in: view)
+        self.startSearching(with: searchTerm)
+    }
+    
+    private func startSearching(with query: String) {
+        
+        guard !hasFetched else {
+            filterSearchResults(with: query)
+            return
+        }
+        
+        DatabaseManager.shared.getAllUsers { [weak self] result in
+            switch  result {
+            case .success(let users):
+                self?.hasFetched = true
+                self?.fetchedUsers = users
+                self?.filterSearchResults(with: query)
+            case .failure(let error):
+                print(error)
+            }
+        }
+    }
+    
+    private func filterSearchResults(with query: String) {
+        let results: [[String:String]] = self.fetchedUsers.filter { dic -> Bool in
+            guard let name = dic["name"]?.lowercased() else {
+                return false
+            }
+            return name.hasPrefix(query.lowercased())
+        }
+        self.results = results
+        self.progressIndicator.dismiss()
+        updateUIWithSearchData()
+    }
+    
+    private func updateUIWithSearchData() {
+        if self.results.isEmpty {
+            noResultsLabel.isHidden = false
+            tableView.isHidden = true
+        } else {
+            noResultsLabel.isHidden = true
+            tableView.isHidden = false
+            tableView.reloadData()
+        }
     }
 }

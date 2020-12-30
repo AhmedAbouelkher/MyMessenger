@@ -67,13 +67,6 @@ class ProfileViewController: UIViewController {
                 let urlObj = URL(string: url)
                 print("urlObj: \(urlObj!)")
                 self?.downloadImage(to: circulerImage, with: urlObj!)
-//            circulerImage.sd_setImage(with: urlObj, placeholderImage: UIImage(systemName: "cloud"))
-//                circulerImage.sd_setImage(with: urlObj,
-//                                          placeholderImage:
-//                                            UIImage(systemName: "cloud"), options: .highPriority, progress: { (count, total, url) in
-//                                            print("\((count/total) * 100.0)")
-//                }, completed: nil)
-                
             case .failure(let error):
                 print("Failed to get download url: \(error)")
             }
@@ -83,8 +76,6 @@ class ProfileViewController: UIViewController {
     }
     
     private func downloadImage(to imageView: UIImageView, with url: URL) {
-        print("Downloading Image")
-        
         URLSession.shared.dataTask(with: url) { (data, _, error) in
             guard error == nil , let data = data else {
                 print("Couldn't download the required image: \(error?.localizedDescription  ?? "nil error")")
@@ -99,6 +90,7 @@ class ProfileViewController: UIViewController {
 }
 
 extension ProfileViewController : UITableViewDelegate, UITableViewDataSource {
+
     
     func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
         return list.count

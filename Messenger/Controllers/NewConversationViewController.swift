@@ -11,6 +11,9 @@ import JGProgressHUD
 
 class NewConversationViewController: UIViewController {
     
+    ///Returns `target user data` as a dictionary
+    public var completion: ((Reciver) -> (Void))?
+    
     private let progressIndicator = JGProgressHUD(style: .dark)
     
     private let tableView: UITableView = {
@@ -90,6 +93,19 @@ extension NewConversationViewController : UITableViewDataSource, UITableViewDele
         cell.textLabel?.text = results[indexPath.row]["name"]
         return cell
     }
+    
+    func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
+        tableView.deselectRow(at: indexPath, animated: true)
+        //Start new convirsation
+        let targetUserData = results[indexPath.row]
+        self.navigationController?.dismiss(animated: true, completion: { [weak self] in
+            let id = targetUserData["id"]
+            let displayName = targetUserData["name"]
+            
+            let reciver = Reciver(senderId: id!, displayName: displayName!)
+            self?.completion?(reciver)
+        })
+    }
 }
 
 extension NewConversationViewController : UISearchBarDelegate {
@@ -110,7 +126,7 @@ extension NewConversationViewController : UISearchBarDelegate {
             return
         }
         
-        DatabaseManager.shared.getAllUsers { [weak self] result in
+        DatabaseManager.shared.fetchAllUsers { [weak self] result in
             switch  result {
             case .success(let users):
                 self?.hasFetched = true
@@ -118,16 +134,25 @@ extension NewConversationViewController : UISearchBarDelegate {
                 self?.filterSearchResults(with: query)
             case .failure(let error):
                 print(error)
+                self?.progressIndicator.dismiss()
+                self?.noResultsLabel.isHidden = false
+                self?.tableView.isHidden = true
+                self?.searchBar.resignFirstResponder()
             }
         }
     }
     
     private func filterSearchResults(with query: String) {
         let results: [[String:String]] = self.fetchedUsers.filter { dic -> Bool in
-            guard let name = dic["name"]?.lowercased() else {
+            guard let name = dic["name"]?.lowercased(),
+                  let currentEmail = UserDefaults.standard.value(forKey: "email") as? String else {
                 return false
             }
-            return name.hasPrefix(query.lowercased())
+            if DatabaseManager.createDataBaseEmail(with: currentEmail) == dic["id"] {
+                return false
+            } else {
+                return name.hasPrefix(query.lowercased())
+            }
         }
         self.results = results
         self.progressIndicator.dismiss()

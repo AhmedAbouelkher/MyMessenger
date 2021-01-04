@@ -196,20 +196,20 @@ class RegisterViewController: UIViewController {
         progressHud.show(in: view)
         UserDefaults.standard.set(email, forKey: "email")
         //Firebase Register
-        databaseManager.userExists(withEmail: email) { [weak self] exists in
+        databaseManager.userExists(with: email) { [weak self] exists in
             guard let strongSelf = self else { return }
             
-            DispatchQueue.main.async {
-                strongSelf.progressHud.dismiss()
-            }
             guard !exists else {
                 //User already exists
                 strongSelf.showErrorAlert(with: "It looks like you have already created an account.")
+                DispatchQueue.main.async {
+                    strongSelf.progressHud.dismiss()
+                }
                 return
             }
             Auth.auth().createUser(withEmail: email, password: password) { (authResult, error) in
                 guard authResult != nil, error == nil else {
-                    strongSelf.showErrorAlert(with: "Error while creating new user: \(error!.localizedDescription)")
+                    strongSelf.showErrorAlert(with: "Error while creating new user: \(error?.localizedDescription ?? "nil error")")
                     return
                 }
                 let chatUser =  ChatAppUser(uid: authResult!.user.uid,
@@ -217,28 +217,39 @@ class RegisterViewController: UIViewController {
                                             lastName: lastName,
                                             email: email)
                 
-                DatabaseManager.shared.createNewUser(with: chatUser) { success in
-                    return
-                }
-                
-                //Uploading User Image
-                if let image = strongSelf.imageView.image, let data = image.pngData() {
-                    StorageManager.shared.uploadProfilePicture(with: data, fileName: chatUser.imageUrl) { result in
-                        switch result {
-                        case .success(let url):
-                            UserDefaults.standard.set(url, forKey: "profile_image")
-                        case .failure(let e ):
-                            print("Error While uploading to storage: \(e.localizedDescription)")
+                DatabaseManager.shared.createNewUser(user: chatUser) { success in
+                    
+                    if !success { return }
+                    
+                    
+                    //Uploading User Image
+                    var imageUrl: URL?
+                    if let image = strongSelf.imageView.image, let data = image.pngData() {
+                        StorageManager.shared.uploadProfilePicture(with: data, fileName: chatUser.imageUrl) { result in
+                            switch result {
+                            case .success(let url):
+                                imageUrl = URL(string: url)
+                            case .failure(let e ):
+                                print("Error While uploading to storage: \(e.localizedDescription)")
+                            }
+                        }
+                    }
+                    
+                    //Updating Username and ProfileImage
+                    DatabaseManager.shared.updateUserData(chatUser, imageUrl: imageUrl) { (success) in
+                        DispatchQueue.main.async { strongSelf.progressHud.dismiss() }
+                        if success {
+                            strongSelf.navigationController?.dismiss(animated: true, completion: nil)
+                        } else {
+                            strongSelf.showErrorAlert(with: "Error while loading your data, try again later.")
                         }
                     }
                 }
-                strongSelf.navigationController?.dismiss(animated: true, completion: nil)
+                
             }
         }
         
     }
-    
-    
     
     private func showErrorAlert(with message: String = "You should type your information to create a new account."){
         let alert = UIAlertController(title: "Woops",

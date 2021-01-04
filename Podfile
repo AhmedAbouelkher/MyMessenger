@@ -8,6 +8,7 @@ target 'Messenger' do
   # Pods for Messenger
   
   #Firebase
+  pod 'FirebaseFirestoreSwift', '~> 7.0-beta'
   pod 'Firebase/Firestore'
   pod 'Firebase/Storage'
   pod 'Firebase/Database'

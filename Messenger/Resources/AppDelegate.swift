@@ -71,34 +71,39 @@ extension AppDelegate : GIDSignInDelegate {
         }
         UserDefaults.standard.set(email, forKey: "email")
         
-        DatabaseManager.shared.userExists(withEmail: email) { (exists) in
+        DatabaseManager.shared.userExists(with: email) { (exists) in
             if !exists {
                 // insert to database
                 let chatUser = ChatAppUser(uid: user.userID,
                                            firstName: firstName,
                                            lastName: lastName,
                                            email: email)
-                DatabaseManager.shared.createNewUser(with: chatUser) { result in
-                    print("Creating new user resaults: \(result)")
-                }
                 
-                //Uploading User Image
-                if !user.profile.hasImage { return }
-                let imageUrl = user.profile.imageURL(withDimension: 200)
-                URLSession.shared.dataTask(with: imageUrl!) { (data, _, error) in
-                    guard error == nil , let data = data else {
-                        print("Error while downloading Google image: \(error?.localizedDescription ?? "nil error")")
-                        return
+                DatabaseManager.shared.createNewUser(user: chatUser) { success in
+                    print("Creating new user resaults: \(success)")
+                    if success {
+                        //Uploading User Image
+                        if !user.profile.hasImage { return }
+                        let imageUrl = user.profile.imageURL(withDimension: 200)
+                        URLSession.shared.dataTask(with: imageUrl!) { (data, _, error) in
+                            guard error == nil , let data = data else {
+                                print("Error while downloading Google image: \(error?.localizedDescription ?? "nil error")")
+                                return
+                            }
+                            StorageManager.shared.uploadProfilePicture(with: data, fileName: chatUser.imageUrl) { result in
+                                switch result {
+                                case .success(let url):
+                                    UserDefaults.standard.set(url, forKey: "profile_image")
+                                case .failure(let e ):
+                                    print("Error While uploading to storage: \(e.localizedDescription)")
+                                }
+                            }
+                        }.resume()
+                    } else {
+                        
                     }
-                    StorageManager.shared.uploadProfilePicture(with: data, fileName: chatUser.imageUrl) { result in
-                        switch result {
-                        case .success(let url):
-                            UserDefaults.standard.set(url, forKey: "profile_image")
-                        case .failure(let e ):
-                            print("Error While uploading to storage: \(e.localizedDescription)")
-                        }
-                    }
-                }.resume()
+                    
+                }
             }
         }
         

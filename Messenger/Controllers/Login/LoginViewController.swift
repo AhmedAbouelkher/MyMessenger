@@ -182,7 +182,7 @@ class LoginViewController: UIViewController {
     private func loginUser(email: String, password: String) {
         Auth.auth().signIn(withEmail: email, password: password) { [weak self] (authResult, error) in
             guard let strongSelf = self else {return}
-            
+            UserDefaults.standard.setValue(email, forKey: "email")
             DispatchQueue.main.async {
                 strongSelf.progressHud.dismiss()
             }

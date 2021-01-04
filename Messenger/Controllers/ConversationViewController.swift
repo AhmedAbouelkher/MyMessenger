@@ -14,20 +14,22 @@ class ConversationViewController: UIViewController {
     
     private let progressHud = JGProgressHUD(style: .dark)
     
+    private var chats = [Chat]()
+    
     private let conversationsTableView: UITableView = {
         let table = UITableView()
         table.isHidden = true
-        table.register(UITableViewCell.self, forCellReuseIdentifier: "cell")
+        table.register(ChatTableViewCell.self, forCellReuseIdentifier: ChatTableViewCell.identifier)
         return table
     }()
     
     private let noConversationLabel: UILabel = {
         let label = UILabel()
         label.isHidden = true
-        label.text = "No Conversations"
+        label.text = "Start Chating Now"
         label.textAlignment = .center
         label.textColor = .gray
-        label.font = .systemFont(ofSize: 21, weight: .medium)
+        label.font = .systemFont(ofSize: 19, weight: .medium)
         return label
     }()
     
@@ -38,25 +40,59 @@ class ConversationViewController: UIViewController {
         conversationsTableView.delegate = self
         
         view.addSubview(conversationsTableView)
-        fetchConversations()
+        view.addSubview(noConversationLabel)
+        conversationsTableView.separatorStyle = .none
+        
+//        progressHud.show(in: self.view)
     }
     
     override func viewDidLayoutSubviews() {
         conversationsTableView.frame = view.bounds
-        conversationsTableView.isHidden = false
+        noConversationLabel.frame = CGRect(x: (view.width - 200) / 2,
+                                           y: (view.height - 50) / 2,
+                                           width: 200,
+                                           height: 50)
+        fetchChats()
+//        progressHud.dismiss()
     }
     
     override func viewDidAppear(_ animated: Bool) {
         super.viewDidAppear(animated)
         presentLogin()
-        navigationItem.rightBarButtonItem = UIBarButtonItem(barButtonSystemItem: .compose, target: self, action: #selector(startNewConversationPressed))
+        navigationItem.rightBarButtonItem = UIBarButtonItem(barButtonSystemItem: .compose,
+                                                            target: self,
+                                                            action: #selector(startNewConversationPressed))
+        
+        navigationItem.leftBarButtonItem = UIBarButtonItem(barButtonSystemItem: .action,
+                                                            target: self,
+                                                            action: #selector(getFirebaseData))
+    }
+    
+    @objc private func getFirebaseData() {
+        guard let currentUser = Auth.auth().currentUser else {
+            print("CAN'T GET CURRENT USER")
+            return
+        }
+        print(currentUser.displayName)
+        print(currentUser.email)
     }
     
     @objc private func startNewConversationPressed() {
         let vc = NewConversationViewController()
+        vc.completion = { [weak self] reciver in
+            self?.createNewConversation(with: reciver)
+        }
         let navVC = UINavigationController(rootViewController: vc)
-        self.present(navVC, animated: true)
+        present(navVC, animated: true)
     }
+
+    private func createNewConversation(with reciver: Reciver) {
+        let vc = ChatViewController(with: reciver, in: nil)
+        vc.title = reciver.displayName
+        vc.navigationItem.largeTitleDisplayMode = .never
+        navigationController?.pushViewController(vc, animated: true)
+    }
+
     
     private func presentLogin() {
         let isLoggedIn = FirebaseAuth.Auth.auth().currentUser != nil
@@ -68,30 +104,55 @@ class ConversationViewController: UIViewController {
         }
     }
     
-    private func fetchConversations() {
-        
+    private func fetchChats() {
+        DatabaseManager.shared.loadChatsSnippet { [weak self] result in
+            switch result {
+            case .success(let chatsConv):
+                self?.chats = chatsConv
+                if chatsConv.isEmpty {
+                    self?.conversationsTableView.isHidden = true
+                    self?.noConversationLabel.isHidden = false
+                } else {
+                    self?.conversationsTableView.isHidden = false
+                    self?.noConversationLabel.isHidden = true
+                    DispatchQueue.main.async {
+                        self?.conversationsTableView.reloadData()
+                    }
+                }
+            case .failure(let error):
+                print(error)
+                self?.conversationsTableView.isHidden = true
+                self?.noConversationLabel.isHidden = false
+            }
+        }
     }
 }
 
 extension ConversationViewController : UITableViewDelegate, UITableViewDataSource {
     
     func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
-        return 1
+        return self.chats.count
     }
     
     func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
-        let cell = tableView.dequeueReusableCell(withIdentifier: "cell", for: indexPath)
-        cell.textLabel?.text = "Ahmed Mahmoud"
-        cell.accessoryType = .disclosureIndicator
+        let chat = self.chats[indexPath.row]
+        let cell = tableView.dequeueReusableCell(withIdentifier: ChatTableViewCell.identifier, for: indexPath) as! ChatTableViewCell
+        cell.configure(with: chat)
         return cell
     }
     
     func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
         tableView.deselectRow(at: indexPath, animated: true)
-        let vc = ChatViewController()
-        vc.title = "Ahmed Mahmoud"
+        let chat = self.chats[indexPath.row]
+        let reciver = Reciver(senderId: chat.reciverUser.userID, displayName: chat.reciverUser.name)
+        let vc = ChatViewController(with: reciver, in: chat)
+        vc.title = chat.reciverUser.name
         vc.navigationItem.largeTitleDisplayMode = .never
         navigationController?.pushViewController(vc, animated: true)
     }
+    
+//    func tableView(_ tableView: UITableView, heightForRowAt indexPath: IndexPath) -> CGFloat {
+//        return 70
+//    }
     
 }

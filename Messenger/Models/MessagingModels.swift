@@ -8,6 +8,7 @@
 
 import Foundation
 import MessageKit
+import CoreLocation
 
 struct Message: MessageType {
     var sender: SenderType
@@ -16,6 +17,34 @@ struct Message: MessageType {
     var kind: MessageKind
     var timeStamp: Double
     
+}
+struct Sender: SenderType {
+    var imageURL: String {
+        get { return "images/\(self.senderId)_profile_image.png" }
+    }
+    var senderId: String
+    var displayName: String
+}
+
+struct Reciver: SenderType {
+    var imageURL: String {
+        get { return "images/\(self.senderId)_profile_image.png" }
+    }
+    var senderId: String
+    var displayName: String
+}
+
+struct Media: MediaItem {
+    var url: URL?
+    var image: UIImage?
+    var placeholderImage: UIImage
+    var size: CGSize
+}
+
+
+struct Location: LocationItem {
+    var location: CLLocation
+    var size: CGSize
 }
 
 extension MessageKind {
@@ -43,20 +72,4 @@ extension MessageKind {
             return "linkPreview"
         }
     }
-}
-
-struct Sender: SenderType {
-    var imageURL: String {
-        get { return "images/\(self.senderId)_profile_image.png" }
-    }
-    var senderId: String
-    var displayName: String
-}
-
-struct Reciver: SenderType {
-    var imageURL: String {
-        get { return "images/\(self.senderId)_profile_image.png" }
-    }
-    var senderId: String
-    var displayName: String
 }

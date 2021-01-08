@@ -11,15 +11,15 @@ import UIKit
 extension UIView {
     
     public var width: CGFloat {
-        return self.frame.size.width
+        return frame.size.width
     }
     
     public var height: CGFloat {
-        return self.frame.size.height
+        return frame.size.height
     }
     
     public var top: CGFloat {
-        return self.frame.origin.y
+        return frame.origin.y
     }
     
     public var bottom: CGFloat {
@@ -28,13 +28,18 @@ extension UIView {
     }
     
     public var left: CGFloat {
-        return self.frame.origin.x
+        return frame.origin.x
     }
     
     
     public var right: CGFloat {
         let frame = self.frame
         return frame.origin.x + frame.size.width
+    }
+    
+    public func makeCirculer() -> Void {
+        let width = frame.width
+        layer.cornerRadius = width / 2
     }
 }
 

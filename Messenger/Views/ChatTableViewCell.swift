@@ -9,13 +9,6 @@
 import UIKit
 import SDWebImage
 
-extension UIView {
-    public func makeCirculer() -> Void {
-        let width = self.frame.width
-        self.layer.cornerRadius = width / 2
-    }
-}
-
 class ChatTableViewCell: UITableViewCell {
     
     static let identifier = "ChatTableViewCell"
@@ -29,13 +22,13 @@ class ChatTableViewCell: UITableViewCell {
     
     private let userNameLabel: UILabel = {
         let label = UILabel()
-        label.font = .systemFont(ofSize: 21, weight: .semibold)
+        label.font = .systemFont(ofSize: 20, weight: .semibold)
         return label
     }()
     
     private let userMessageLabel: UILabel = {
         let label = UILabel()
-        label.font = .systemFont(ofSize: 19, weight: .regular)
+        label.font = .systemFont(ofSize: 15, weight: .regular)
         label.numberOfLines = 0
         return label
     }()
@@ -60,7 +53,8 @@ class ChatTableViewCell: UITableViewCell {
                                      y: 10,
                                      width: 50,
                                      height: 50)
-        userImageView.layer.cornerRadius = userImageView.frame.width / 2
+        
+        userImageView.makeCirculer()
         
         userNameLabel.frame = CGRect(x: userImageView.right + 10,
                                      y: 10,
@@ -68,7 +62,7 @@ class ChatTableViewCell: UITableViewCell {
                                      height: (contentView.height-20)/2)
         
         userMessageLabel.frame = CGRect(x: userImageView.right + 10,
-                                        y: userNameLabel.bottom + 10,
+                                        y: userNameLabel.bottom,
                                         width: contentView.width - 20 - userImageView.width,
                                         height: (contentView.height-20)/2)
         
@@ -77,17 +71,12 @@ class ChatTableViewCell: UITableViewCell {
     public func configure(with model: Chat) {
         configureLatestMessage(model)
         self.userNameLabel.text = model.reciverUser.name
-        print("CHAT MODEL \(model)")
         StorageManager.shared.downloadURL(for: model.reciverUser.imageURL, completion: { [weak self] result in
             switch result {
             case .success(let url):
-                guard let path = URL(string: url) else {
-                    return
-                }
                 DispatchQueue.main.async {
-                    self?.userImageView.sd_setImage(with: path, completed: nil)
-                }
-                
+                    self?.userImageView.sd_setImage(with: url, completed: nil)
+                }                
             case .failure(let error):
                 print("failed to get image url: \(error)")
             }
@@ -95,11 +84,17 @@ class ChatTableViewCell: UITableViewCell {
     }
     
     fileprivate func configureLatestMessage(_ model: Chat) {
-        if let emailID = DatabaseManager.getCurrentUserID() {
-            print("## Is me" , emailID == model.senderUser.userID, "currentEmail: \(emailID), sender: \(model.senderUser.userID)")
-            self.userMessageLabel.text = "You: \(model.latestMessage.message)"
-        } else {
-            self.userMessageLabel.text = model.latestMessage.message
+        
+        userMessageLabel.text = model.latestMessage.message
+        
+        if model.latestMessage.type != "text" {
+            userMessageLabel.text = "sent an attachment"
+            userMessageLabel.font = .italicSystemFont(ofSize: 15)
+        }
+        
+        if let emailId = DatabaseManager.getCurrentUserID, emailId == model.latestMessage.sentBy.userID {
+            userMessageLabel.text = "You: " + userMessageLabel.text!
         }
     }
 }
+

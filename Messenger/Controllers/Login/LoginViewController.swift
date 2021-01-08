@@ -36,7 +36,7 @@ class LoginViewController: UIViewController {
         textField.returnKeyType = .continue
         textField.keyboardType = .emailAddress
         textField.clearButtonMode = .whileEditing
-        textField.backgroundColor = .white
+        textField.backgroundColor = .systemBackground
         textField.layer.borderColor = UIColor.gray.cgColor
         textField.layer.borderWidth = 0.5
         textField.layer.cornerRadius = 15
@@ -52,7 +52,7 @@ class LoginViewController: UIViewController {
         textField.autocapitalizationType = .none
         textField.returnKeyType = .done
         textField.clearButtonMode = .whileEditing
-        textField.backgroundColor = .white
+        textField.backgroundColor = .systemBackground
         textField.isSecureTextEntry = true
         textField.layer.borderColor = UIColor.gray.cgColor
         textField.layer.borderWidth = 0.5
@@ -90,13 +90,17 @@ class LoginViewController: UIViewController {
     }()
     
     private let gidSignIn = GIDSignIn.sharedInstance()
+    
     private var notificationObserver: NSObjectProtocol?
     
     override func viewDidLoad() {
         super.viewDidLoad()
         
-        notificationObserver =  NotificationCenter.default.addObserver(forName: .didLogInNotification, object: nil, queue: .main) { [weak self] _ in
-            guard let self = self else {return}
+        notificationObserver =  NotificationCenter.default.addObserver(
+            forName: .didLogInNotification,
+            object: nil,
+            queue: .main) { [weak self] _ in
+            guard let self = self else { return }
             self.navigationController?.dismiss(animated: true, completion: nil)
         }
         
@@ -107,7 +111,7 @@ class LoginViewController: UIViewController {
         gidSignIn?.presentingViewController = self
         
         title = "Login"
-        view.backgroundColor = .white
+        view.backgroundColor = .systemBackground
         navigationItem.rightBarButtonItem = UIBarButtonItem(title: "Register",
                                                             style: .plain,
                                                             target: self,
@@ -181,22 +185,24 @@ class LoginViewController: UIViewController {
     
     private func loginUser(email: String, password: String) {
         Auth.auth().signIn(withEmail: email, password: password) { [weak self] (authResult, error) in
-            guard let strongSelf = self else {return}
+            guard let self = self else {return}
             UserDefaults.standard.setValue(email, forKey: "email")
             DispatchQueue.main.async {
-                strongSelf.progressHud.dismiss()
+                self.progressHud.dismiss()
             }
             
             guard authResult != nil, error == nil else {
                 print("Error while singing in: \(error!.localizedDescription)")
+                self.showErrorAlert(with: error!.localizedDescription)
                 return
             }
             print("User signed In Successfuly")
-            strongSelf.navigationController?.dismiss(animated: true, completion: nil)
+            NotificationCenter.default.post(name: .didLogInNotification, object: nil)
+//            self.navigationController?.dismiss(animated: true, completion: nil)
         }
     }
     
-    private func showErrorAlert() -> Void {
+    private func showErrorAlert(with message: String = "You should type your information to login.") -> Void {
         let alert = UIAlertController(title: "Woops", message: "You should type your information to login.", preferredStyle: .alert)
         alert.addAction(UIAlertAction(title: "Dismiss", style: .cancel, handler: nil))
         self.present(alert, animated: true)

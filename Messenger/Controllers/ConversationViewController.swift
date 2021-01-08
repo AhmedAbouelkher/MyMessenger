@@ -15,8 +15,9 @@ class ConversationViewController: UIViewController {
     private let progressHud = JGProgressHUD(style: .dark)
     
     private var chats = [Chat]()
+    private var notificationObserver: NSObjectProtocol?
     
-    private let conversationsTableView: UITableView = {
+    private let chatsTableView: UITableView = {
         let table = UITableView()
         table.isHidden = true
         table.register(ChatTableViewCell.self, forCellReuseIdentifier: ChatTableViewCell.identifier)
@@ -36,45 +37,48 @@ class ConversationViewController: UIViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
         //TableView Delegates
-        conversationsTableView.dataSource = self
-        conversationsTableView.delegate = self
+        chatsTableView.dataSource = self
+        chatsTableView.delegate = self
         
-        view.addSubview(conversationsTableView)
+        view.addSubview(chatsTableView)
         view.addSubview(noConversationLabel)
-        conversationsTableView.separatorStyle = .none
+        chatsTableView.separatorStyle = .none
+                
+        navigationItem.rightBarButtonItem = UIBarButtonItem(
+            barButtonSystemItem: .compose,
+            target: self,
+            action: #selector(startNewConversationPressed)
+        )
         
-//        progressHud.show(in: self.view)
+        notificationObserver =  NotificationCenter
+            .default
+            .addObserver(forName: .didLogInNotification, object: nil, queue: .main) { [weak self] _ in
+            guard let self = self else { return }
+            self.listenToChats()
+        }
+
     }
     
     override func viewDidLayoutSubviews() {
-        conversationsTableView.frame = view.bounds
+        chatsTableView.frame = view.bounds
         noConversationLabel.frame = CGRect(x: (view.width - 200) / 2,
                                            y: (view.height - 50) / 2,
                                            width: 200,
                                            height: 50)
-        fetchChats()
-//        progressHud.dismiss()
+        
     }
     
     override func viewDidAppear(_ animated: Bool) {
         super.viewDidAppear(animated)
-        presentLogin()
-        navigationItem.rightBarButtonItem = UIBarButtonItem(barButtonSystemItem: .compose,
-                                                            target: self,
-                                                            action: #selector(startNewConversationPressed))
-        
-        navigationItem.leftBarButtonItem = UIBarButtonItem(barButtonSystemItem: .action,
-                                                            target: self,
-                                                            action: #selector(getFirebaseData))
+        goToLoginPageIfNotLoggedIn()
+        listenToChats()
     }
+
     
-    @objc private func getFirebaseData() {
-        guard let currentUser = Auth.auth().currentUser else {
-            print("CAN'T GET CURRENT USER")
-            return
+    deinit {
+        if let observer = notificationObserver {
+            NotificationCenter.default.removeObserver(observer)
         }
-        print(currentUser.displayName)
-        print(currentUser.email)
     }
     
     @objc private func startNewConversationPressed() {
@@ -94,7 +98,7 @@ class ConversationViewController: UIViewController {
     }
 
     
-    private func presentLogin() {
+    private func goToLoginPageIfNotLoggedIn() {
         let isLoggedIn = FirebaseAuth.Auth.auth().currentUser != nil
         if !isLoggedIn {
             let vc = LoginViewController()
@@ -104,25 +108,27 @@ class ConversationViewController: UIViewController {
         }
     }
     
-    private func fetchChats() {
+    
+    private func listenToChats() {
         DatabaseManager.shared.loadChatsSnippet { [weak self] result in
+            guard let self = self else { return }
             switch result {
             case .success(let chatsConv):
-                self?.chats = chatsConv
-                if chatsConv.isEmpty {
-                    self?.conversationsTableView.isHidden = true
-                    self?.noConversationLabel.isHidden = false
-                } else {
-                    self?.conversationsTableView.isHidden = false
-                    self?.noConversationLabel.isHidden = true
-                    DispatchQueue.main.async {
-                        self?.conversationsTableView.reloadData()
-                    }
+                guard !chatsConv.isEmpty  else {
+                    self.chatsTableView.isHidden = true
+                    self.noConversationLabel.isHidden = false
+                    return
+                }
+                self.chats = chatsConv
+                self.chatsTableView.isHidden = false
+                self.noConversationLabel.isHidden = true
+                DispatchQueue.main.async {
+                    self.chatsTableView.reloadData()
                 }
             case .failure(let error):
                 print(error)
-                self?.conversationsTableView.isHidden = true
-                self?.noConversationLabel.isHidden = false
+                self.chatsTableView.isHidden = true
+                self.noConversationLabel.isHidden = false
             }
         }
     }
@@ -151,8 +157,30 @@ extension ConversationViewController : UITableViewDelegate, UITableViewDataSourc
         navigationController?.pushViewController(vc, animated: true)
     }
     
-//    func tableView(_ tableView: UITableView, heightForRowAt indexPath: IndexPath) -> CGFloat {
-//        return 70
-//    }
+    func tableView(_ tableView: UITableView, heightForRowAt indexPath: IndexPath) -> CGFloat {
+        return 70
+    }
     
+    func tableView(_ tableView: UITableView, editingStyleForRowAt indexPath: IndexPath) -> UITableViewCell.EditingStyle {
+        return .delete
+    }
+    
+    func tableView(_ tableView: UITableView, commit editingStyle: UITableViewCell.EditingStyle, forRowAt indexPath: IndexPath) {
+        guard editingStyle == .delete else { return }
+        //Begin Deleting
+        let chat = chats[indexPath.row]
+        tableView.beginUpdates()
+        self.chats.remove(at: indexPath.row)
+        tableView.deleteRows(at: [indexPath], with: .left)
+        
+        DatabaseManager.shared.deleteChat(with: chat) { success in
+            guard success else {
+                print("Couldn't delete the chat")
+                return
+            }
+            print("Conversation Deleted")
+        }
+        
+        tableView.endUpdates()
+    }
 }

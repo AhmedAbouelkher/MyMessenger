@@ -1,9 +1,11 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<document type="com.apple.InterfaceBuilder3.CocoaTouch.Storyboard.XIB" version="3.0" toolsVersion="16097" targetRuntime="iOS.CocoaTouch" propertyAccessControl="none" useAutolayout="YES" useTraitCollections="YES" useSafeAreas="YES" colorMatched="YES" initialViewController="YXJ-Nq-2PB">
+<document type="com.apple.InterfaceBuilder3.CocoaTouch.Storyboard.XIB" version="3.0" toolsVersion="17701" targetRuntime="iOS.CocoaTouch" propertyAccessControl="none" useAutolayout="YES" useTraitCollections="YES" useSafeAreas="YES" colorMatched="YES" initialViewController="YXJ-Nq-2PB">
     <device id="retina6_1" orientation="portrait" appearance="light"/>
     <dependencies>
-        <plugIn identifier="com.apple.InterfaceBuilder.IBCocoaTouchPlugin" version="16087"/>
+        <deployment identifier="iOS"/>
+        <plugIn identifier="com.apple.InterfaceBuilder.IBCocoaTouchPlugin" version="17703"/>
         <capability name="Safe area layout guides" minToolsVersion="9.0"/>
+        <capability name="System colors in document resources" minToolsVersion="11.0"/>
         <capability name="documents saved in the Xcode 8 format" minToolsVersion="8.0"/>
     </dependencies>
     <scenes>
@@ -14,14 +16,14 @@
                     <view key="view" contentMode="scaleToFill" id="8bC-Xf-vdC">
                         <rect key="frame" x="0.0" y="0.0" width="414" height="896"/>
                         <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
-                        <color key="backgroundColor" systemColor="systemBackgroundColor" cocoaTouchSystemColor="whiteColor"/>
                         <viewLayoutGuide key="safeArea" id="6Tk-OE-BBY"/>
+                        <color key="backgroundColor" systemColor="systemBackgroundColor"/>
                     </view>
                     <navigationItem key="navigationItem" title="Chat" id="JrX-Aa-mHK"/>
                 </viewController>
                 <placeholder placeholderIdentifier="IBFirstResponder" id="dkx-z0-nzr" sceneMemberID="firstResponder"/>
             </objects>
-            <point key="canvasLocation" x="-1258" y="1255"/>
+            <point key="canvasLocation" x="-1259.4202898550725" y="1254.9107142857142"/>
         </scene>
         <!--Tab Bar Controller-->
         <scene sceneID="RFP-kV-Kd4">
@@ -45,7 +47,7 @@
         <scene sceneID="ZcU-2d-MzA">
             <objects>
                 <navigationController id="sxF-D1-I8F" sceneMemberID="viewController">
-                    <tabBarItem key="tabBarItem" title="Profile" id="7qL-A6-KTX"/>
+                    <tabBarItem key="tabBarItem" title="Profile" image="person" catalog="system" id="7qL-A6-KTX"/>
                     <navigationBar key="navigationBar" contentMode="scaleToFill" insetsLayoutMarginsFromSafeArea="NO" largeTitles="YES" id="1fr-Oq-944">
                         <rect key="frame" x="0.0" y="44" width="414" height="96"/>
                         <autoresizingMask key="autoresizingMask"/>
@@ -62,7 +64,7 @@
         <scene sceneID="kvF-bC-yW0">
             <objects>
                 <navigationController automaticallyAdjustsScrollViewInsets="NO" id="fKA-YT-biZ" sceneMemberID="viewController">
-                    <tabBarItem key="tabBarItem" title="Chat" id="tg6-bo-ubF"/>
+                    <tabBarItem key="tabBarItem" title="Chat" image="message.fill" catalog="system" id="tg6-bo-ubF"/>
                     <toolbarItems/>
                     <navigationBar key="navigationBar" contentMode="scaleToFill" insetsLayoutMarginsFromSafeArea="NO" largeTitles="YES" id="0F4-uJ-vfO">
                         <rect key="frame" x="0.0" y="44" width="414" height="96"/>
@@ -87,17 +89,17 @@
                         <subviews>
                             <tableView clipsSubviews="YES" contentMode="scaleToFill" alwaysBounceVertical="YES" dataMode="prototypes" style="plain" separatorStyle="default" rowHeight="-1" estimatedRowHeight="-1" sectionHeaderHeight="28" sectionFooterHeight="28" translatesAutoresizingMaskIntoConstraints="NO" id="Trx-9Z-htg">
                                 <rect key="frame" x="0.0" y="140" width="414" height="673"/>
-                                <color key="backgroundColor" systemColor="systemBackgroundColor" cocoaTouchSystemColor="whiteColor"/>
+                                <color key="backgroundColor" systemColor="systemBackgroundColor"/>
                             </tableView>
                         </subviews>
-                        <color key="backgroundColor" systemColor="systemBackgroundColor" cocoaTouchSystemColor="whiteColor"/>
+                        <viewLayoutGuide key="safeArea" id="Ikw-pv-psS"/>
+                        <color key="backgroundColor" systemColor="systemBackgroundColor"/>
                         <constraints>
                             <constraint firstItem="Trx-9Z-htg" firstAttribute="leading" secondItem="Ikw-pv-psS" secondAttribute="leading" id="0IV-Ql-xVI"/>
                             <constraint firstItem="Trx-9Z-htg" firstAttribute="top" secondItem="Ikw-pv-psS" secondAttribute="top" id="2y5-nm-8ib"/>
                             <constraint firstItem="Ikw-pv-psS" firstAttribute="bottom" secondItem="Trx-9Z-htg" secondAttribute="bottom" id="QhN-aZ-ebw"/>
                             <constraint firstItem="Ikw-pv-psS" firstAttribute="trailing" secondItem="Trx-9Z-htg" secondAttribute="trailing" id="cfN-LO-Fu7"/>
                         </constraints>
-                        <viewLayoutGuide key="safeArea" id="Ikw-pv-psS"/>
                     </view>
                     <navigationItem key="navigationItem" title="Profile" id="1ba-Ew-YOl"/>
                     <connections>
@@ -109,4 +111,11 @@
             <point key="canvasLocation" x="771" y="1255"/>
         </scene>
     </scenes>
+    <resources>
+        <image name="message.fill" catalog="system" width="128" height="113"/>
+        <image name="person" catalog="system" width="128" height="117"/>
+        <systemColor name="systemBackgroundColor">
+            <color white="1" alpha="1" colorSpace="custom" customColorSpace="genericGamma22GrayColorSpace"/>
+        </systemColor>
+    </resources>
 </document>

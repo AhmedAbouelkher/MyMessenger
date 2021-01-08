@@ -11,10 +11,12 @@ import FirebaseDatabase
 import FirebaseFirestore
 import FirebaseAuth
 import FirebaseFirestoreSwift
+import MessageKit
+import CoreLocation
 
 typealias ChatsListenerBlock = (Result<[Chat], Error>) -> Void
 typealias MessagesListenerBlock = (Result<[Message], Error>) -> Void
-typealias GettingAllUsersCompletion = (Result<[[String:String]], Error>) -> Void
+typealias GettingAllUsersCompletion = (Result<[User], Error>) -> Void
 
 
 struct ChatAppUser {
@@ -39,7 +41,6 @@ final class DatabaseManager {
     private var database = Database.database().reference()
     private let fireDB = Firestore.firestore()
     
-    
     public static func createDataBaseEmail(with email: String) -> String {
         let notAllowedChars: [String] = [ ".",  "#", "@", "[", "]" ]
         var safeEmail = email
@@ -49,7 +50,8 @@ final class DatabaseManager {
         return safeEmail
     }
     
-    public static func getCurrentUserID() -> String? {
+    ///Use to get the current user email ID
+    public static var getCurrentUserID: String? {
         guard let currentEmail = UserDefaults.standard.value(forKey: "email") as? String else {
             return nil
         }
@@ -63,6 +65,7 @@ final class DatabaseManager {
     
     public enum DatabaseError: Error {
         case failedToFetch
+        case failedToDelete
     }
 }
 //MARK: - Conversations Manager 'Real-time Database'
@@ -94,12 +97,34 @@ extension DatabaseManager {
         }
     }
     
-    ///Loads the messages in real-time
-    public func loadChat(with reciver: Reciver, in chat: Chat?, listener: @escaping MessagesListenerBlock) -> Void {
-        guard let email = UserDefaults.standard.value(forKey: "email") as? String  else {
+    /// Deleting Current Chat between the user and the other user
+    /// Parameters
+    /// - `with`: is the current chat
+    /// - `completion`:  returnes `Bool` which indecats the precess success status
+    public func deleteChat(with chat: Chat, completion: @escaping (Bool) -> Void) -> Void {
+        guard let emailId = DatabaseManager.getCurrentUserID else {
             return
         }
-        let currentEmail = DatabaseManager.createDataBaseEmail(with: email)
+        let chatRef = fireDB
+            .collection("users")
+            .document(emailId)
+            .collection("chats")
+            .document(chat.id)
+        chatRef.delete { error in
+            guard error == nil else {
+                print("Error While Deleting: \(error?.localizedDescription ?? "")")
+                completion(false)
+                return
+            }
+            completion(true)
+        }
+    }
+    
+    ///Loads the messages in real-time
+    public func loadChat(with reciver: Reciver, in chat: Chat?, listener: @escaping MessagesListenerBlock) -> ListenerRegistration? {
+        guard let currentEmail = DatabaseManager.getCurrentUserID else {
+            return nil
+        }
         ///Conversation ID `Auto-Generated if the conversation is new`
         var conversationId = "conversation@\(reciver.senderId)@\(currentEmail)"
         if let chat = chat { conversationId = chat.id }
@@ -109,7 +134,7 @@ extension DatabaseManager {
             .document(conversationId)
             .collection("messages")
             .order(by: "time_stamp", descending: false)
-        chatRef.addSnapshotListener { (snapshot, error) in
+        return chatRef.addSnapshotListener { (snapshot, error) in
             guard error == nil, let docs = snapshot?.documents else {
                 if let e = error {
                     print("Loading error: \(e.localizedDescription)")
@@ -121,19 +146,64 @@ extension DatabaseManager {
             }
             
             let messages: [Message] = docs.compactMap { (doc) -> Message? in
-                print(doc.data())
                 guard let firebaseChat = try? doc.data(as: FirebaseChat.self) else {
                     print("Invaild FirebaseChat Model decoding")
                     return nil
                 }
                 
+                var messageKind: MessageKind?
+                
+                if firebaseChat.type == "photo" {
+                    // photo
+                    guard let imageUrl = URL(string: firebaseChat.content),
+                          let placeHolder = UIImage(systemName: "plus") else {
+                        return nil
+                    }
+                    let media = Media(
+                        url: imageUrl,
+                        image: nil,
+                        placeholderImage: placeHolder,
+                        size: CGSize(width: 200, height: 200)
+                    )
+                    messageKind = .photo(media)
+                }
+                else if firebaseChat.type == "video" {
+                    // video
+                    guard let videoUrl = URL(string: firebaseChat.content),
+                          let placeHolder = UIImage(systemName: "plus")  else {
+                        return nil
+                    }
+                    let media = Media(
+                        url: videoUrl,
+                        image: nil,
+                        placeholderImage: placeHolder,
+                        size: CGSize(width: 200, height: 200)
+                    )
+                    messageKind = .video(media)
+                } else if firebaseChat.type == "location" {
+                    // Location
+                    
+                    let coordinate = firebaseChat.content
+                        .components(separatedBy: "@")
+                        .compactMap {  Double($0) }
+                    print("Rendering Location \(coordinate)")
+                    let cLocation = CLLocation(latitude: coordinate.first!, longitude: coordinate.last!)
+                    let location = Location(
+                        location: cLocation,
+                        size: CGSize(width: 200, height: 200)
+                    )
+                    messageKind = .location(location)
+                } else {
+                    messageKind = .text(firebaseChat.content)
+                }
+                
                 let senderUser = Sender(senderId: firebaseChat.sender.id, displayName: firebaseChat.sender.name)
-                // TODO: Change date to be the message sending date
+                
                 let message = Message(
                     sender: senderUser,
                     messageId: firebaseChat.id,
-                    sentDate: Date(),
-                    kind: .text(firebaseChat.content),
+                    sentDate: Date(timeIntervalSince1970: firebaseChat.timeStamp),
+                    kind: messageKind!,
                     timeStamp: firebaseChat.timeStamp
                 )
                 return message
@@ -144,12 +214,9 @@ extension DatabaseManager {
         }
     }
     
-    // TODO: [FIX] reciver and sender don't switch when the last one send new message
-    //you should switch users when sending new message
-    
-    /// - Send First message that creates the chat between two users
-    /// - Send the messages between theme after creating the first message
-    public func startChat(with reciver: Reciver, send message: Message, in chat: Chat?, completion:  @escaping (Bool) -> Void ) {
+    /// - Send First message that creates the chat between two users.
+    /// - Send the messages between the users after creating the first message.
+    public func chat(with reciver: Reciver, send message: Message, in chat: Chat?, completion:  @escaping (Bool) -> Void ) {
         guard let email = UserDefaults.standard.value(forKey: "email") as? String,
               let firebaseUser = Auth.auth().currentUser,
               /// Current Sender `username`
@@ -161,14 +228,14 @@ extension DatabaseManager {
         ///The message content `text`, `photo`, `video`, etc..
         var messageContent = ""
         
-        getMessagetype(message, &messageContent)
+        getMessageContent(message, &messageContent)
         
         ///Current User E-mail ID `Document ID`
         let currentEmail = DatabaseManager.createDataBaseEmail(with: email)
         
         ///Conversation ID `Auto-Generated if the conversation is new`
-        var conversationId = "conversation@\(reciver.senderId)@\(currentEmail)"
-        if let chat = chat { conversationId = chat.id }
+        var chatId = "conversation@\(reciver.senderId)@\(currentEmail)"
+        if let chat = chat { chatId = chat.id }
         
         let messageDate = ChatViewController.dateFormatter.string(from: message.sentDate)
         
@@ -179,7 +246,7 @@ extension DatabaseManager {
         
         //Add new chat to chats
         let chatsRef = fireDB.collection("chats")
-            .document(conversationId)
+            .document(chatId)
             .collection("messages")
             .document(message.messageId)
         
@@ -212,16 +279,16 @@ extension DatabaseManager {
         /*
          Adding chats to users
          */
-
+        
         
         //Add new chat to current user
         let currentSenderFirebaseRef = fireDB.collection("users")
             .document(currentEmail)
             .collection("chats")
-            .document(conversationId)
+            .document(chatId)
         
         let currentSenderFirebaseChatRef = Chat(
-            id: conversationId,
+            id: chatId,
             reciverUser: UserRef(
                 userID: reciver.senderId,
                 name: reciver.displayName
@@ -231,14 +298,21 @@ extension DatabaseManager {
                 name: currentUserName
             ),
             latestMessage: LatestMessage(
+                id: message.messageId,
+                type: message.kind.messageKindString,
                 message: messageContent,
                 date: messageDate,
                 timeStamp: message.timeStamp,
-                isRead: false
+                isRead: false,
+                sentBy: UserRef(
+                    userID: currentEmail,
+                    name: currentUserName
+                )
             )
         )
         
-        guard let _ = try? batch.setData(from: currentSenderFirebaseChatRef.self, forDocument: currentSenderFirebaseRef) else {
+        guard let _ = try? batch.setData(from: currentSenderFirebaseChatRef.self,
+                                         forDocument: currentSenderFirebaseRef) else {
             print("ERROR WHILE WRITING THE FIREBAE MESSAGE")
             completion(false)
             return
@@ -249,10 +323,11 @@ extension DatabaseManager {
         let otherUserRef = fireDB.collection("users")
             .document(reciver.senderId)
             .collection("chats")
-            .document(conversationId)
+            .document(chatId)
         
         let otherUserChatRef = Chat(
-            id: conversationId,
+            id: chatId,
+            
             reciverUser: UserRef(
                 userID: currentEmail,
                 name: currentUserName
@@ -262,14 +337,21 @@ extension DatabaseManager {
                 name: reciver.displayName
             ),
             latestMessage: LatestMessage(
+                id: message.messageId,
+                type: message.kind.messageKindString,
                 message: messageContent,
                 date: messageDate,
                 timeStamp: message.timeStamp,
-                isRead: false
+                isRead: false,
+                sentBy: UserRef(
+                    userID: currentEmail,
+                    name: currentUserName
+                )
             )
         )
         
-        guard let _ = try? batch.setData(from: otherUserChatRef.self, forDocument: otherUserRef) else {
+        guard let _ = try? batch.setData(from: otherUserChatRef.self,
+                                         forDocument: otherUserRef) else {
             print("ERROR WHILE WRITING THE FIREBAE MESSAGE")
             completion(false)
             return
@@ -285,17 +367,21 @@ extension DatabaseManager {
         }
     }
     
-    fileprivate func getMessagetype(_ message: Message, _ messageContent: inout String) {
+    fileprivate func getMessageContent(_ message: Message, _ messageContent: inout String) {
         switch message.kind {
         case .text(let messageText):
             messageContent = messageText
         case .attributedText(_):
             break
-        case .photo(_):
+        case .photo(let image):
+            if let url = image.url { messageContent = url.absoluteString }
             break
-        case .video(_):
+        case .video(let video):
+            if let url = video.url { messageContent = url.absoluteString }
             break
-        case .location(_):
+        case .location(let locationType):
+            let location = locationType.location.coordinate
+            messageContent = "\(location.latitude)@\(location.longitude)"
             break
         case .emoji(_):
             break
@@ -309,7 +395,7 @@ extension DatabaseManager {
             break
         }
     }
-   
+    
 }
 
 //MARK: - Firestore
@@ -331,25 +417,29 @@ extension DatabaseManager {
     
     /// Creates a new user database profile.
     public func createNewUser(user: ChatAppUser, completion: @escaping (Bool) -> Void ) -> Void {
-        let data: [String: Any] = [
-            "id": DatabaseManager.createDataBaseEmail(with: user.email),
-            "name": "\(user.firstName) \(user.lastName)",
-            "first_name":user.firstName,
-            "last_name": user.lastName,
-            "email": user.email,
-            "uid": user.uid ?? "null"
-        ]
-        fireDB.collection("users").document(user.databaseEmail).setData(data) { error in
-            guard error == nil else {
-                print("failed ot write to database")
-                completion(false)
-                return
+        let newUser = User(
+            email: user.email,
+            firstName: user.firstName,
+            id: DatabaseManager.createDataBaseEmail(with: user.email),
+            lastName: user.lastName,
+            name: "\(user.firstName) \(user.lastName)",
+            uid: user.uid ?? "nul"
+        )
+        do {
+            try fireDB.collection("users").document(user.databaseEmail).setData(from: newUser.self) { error in
+                guard error == nil else {
+                    print("failed ot write to database")
+                    completion(false)
+                    return
+                }
+                completion(true)
             }
-            completion(true)
+        } catch {
+            completion(false)
         }
     }
     
-    /// Get all users in the database and show them to the user, using `(Result<[[String: String]], DatabaseError>) -> Void` compelition clouser
+    /// Get all users in the database and show them to the user, using `GettingAllUsersCompletion` compelition clouser
     public func fetchAllUsers(completion: @escaping GettingAllUsersCompletion) {
         fireDB.collection("users").getDocuments { (snapshot, error) in
             guard error == nil , let docs = snapshot?.documents else {
@@ -357,10 +447,11 @@ extension DatabaseManager {
                 completion(.failure(DatabaseError.failedToFetch))
                 return
             }
-            var users: [[String: String]] = []
-            for doc in docs {
-                let data = doc.data() as! [String: String]
-                users.append(data)
+            let users = docs.compactMap { (doc) -> User? in
+                guard let user = try? doc.data(as: User.self) else {
+                    return nil
+                }
+                return user
             }
             completion(.success(users))
         }
@@ -463,18 +554,18 @@ extension DatabaseManager{
     }
     
     /// Get all users in the database and show them to the user, using `(Result<[String:String], DatabaseError>) -> Void` compelition clouser
-    public func getAllUsers(completion: @escaping GettingAllUsersCompletion) {
-        database.child("users").observeSingleEvent(of: .value) { snapshot in
-            guard let value = snapshot.value as? [[String: String]] else {
-                completion(.failure(DatabaseError.failedToFetch))
-                return
-            }
-            completion(.success(value))
-        }
-    }
+//    public func getAllUsers(completion: @escaping GettingAllUsersCompletion) {
+//        database.child("users").observeSingleEvent(of: .value) { snapshot in
+//            guard let value = snapshot.value as? [[String: String]] else {
+//                completion(.failure(DatabaseError.failedToFetch))
+//                return
+//            }
+//            completion(.success(value))
+//        }
+//    }
     
     
-
+    
 }
 
 extension DatabaseManager {
@@ -507,6 +598,8 @@ extension DatabaseManager {
      */
     
     /// Creates a new conversation with target user emamil and first message sent
+    
+    @available(iOS, introduced: 4.0, deprecated: 13.0)
     public func createNewConversation(with otherUserEmail: String, firstMessage: Message, completion: @escaping (Bool) -> Void) {
         guard let currentEmail = UserDefaults.standard.value(forKey: "email") as? String else {
             return

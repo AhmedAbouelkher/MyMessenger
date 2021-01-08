@@ -17,6 +17,7 @@ import Foundation
 
 // MARK: - Chat
 struct Chat: Codable {
+    ///Chat Document ID
     let id: String
     let reciverUser: UserRef
     let senderUser: UserRef
@@ -32,14 +33,19 @@ struct Chat: Codable {
 
 // MARK: - LatestMessage
 struct LatestMessage: Codable {
+    let id: String
+    let type: String
     let message, date: String
     let timeStamp: Double
     let isRead: Bool
+    ///Sender Document ID
+    let sentBy: UserRef
 
     enum CodingKeys: String, CodingKey {
-        case message, date
+        case id, message, date, type
         case timeStamp = "time_stamp"
         case isRead = "is_read"
+        case sentBy = "sent_by"
     }
 }
 

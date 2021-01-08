@@ -11,15 +11,12 @@ import JGProgressHUD
 
 class NewConversationViewController: UIViewController {
     
-    ///Returns `target user data` as a dictionary
-    public var completion: ((Reciver) -> (Void))?
-    
     private let progressIndicator = JGProgressHUD(style: .dark)
     
     private let tableView: UITableView = {
         let table = UITableView()
         table.isHidden = true
-        table.register(UITableViewCell.self, forCellReuseIdentifier: "cell")
+        table.register(NewConversationTableViewCell.self, forCellReuseIdentifier: NewConversationTableViewCell.identifier)
         return table
     }()
     
@@ -42,14 +39,18 @@ class NewConversationViewController: UIViewController {
     }()
     
     
-    private var results = [[String: String]]()
-    private var fetchedUsers = [[String: String]]()
+    ///Returns `target user data` as a dictionary
+    public var completion: ((Reciver) -> (Void))?
+    
+    private var results = [User]()
+    private var fetchedUsers = [User]()
     private var hasFetched = false
+    
     
 
     override func viewDidLoad() {
         super.viewDidLoad()
-        view.backgroundColor = .white
+        view.backgroundColor = .systemGroupedBackground
         
         //Adding search
         navigationController?.navigationBar.topItem?.titleView = searchBar
@@ -65,6 +66,8 @@ class NewConversationViewController: UIViewController {
         //Adding subViews
         view.addSubview(tableView)
         view.addSubview(noResultsLabel)
+        
+        tableView.separatorStyle = .none
     }
     
     override func viewDidLayoutSubviews() {
@@ -89,23 +92,25 @@ extension NewConversationViewController : UITableViewDataSource, UITableViewDele
     }
     
     func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
-        let cell = tableView.dequeueReusableCell(withIdentifier: "cell", for: indexPath)
-        cell.textLabel?.text = results[indexPath.row]["name"]
+        let result = results[indexPath.row]
+        let cell = tableView.dequeueReusableCell(withIdentifier: NewConversationTableViewCell.identifier, for: indexPath) as! NewConversationTableViewCell
+        cell.configure(with: result)
         return cell
     }
     
     func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
         tableView.deselectRow(at: indexPath, animated: true)
         //Start new convirsation
-        let targetUserData = results[indexPath.row]
+        let targetUser = results[indexPath.row]
         self.navigationController?.dismiss(animated: true, completion: { [weak self] in
-            let id = targetUserData["id"]
-            let displayName = targetUserData["name"]
-            
-            let reciver = Reciver(senderId: id!, displayName: displayName!)
+            let reciver = Reciver(senderId: targetUser.id, displayName: targetUser.name)
             self?.completion?(reciver)
         })
     }
+
+//    func tableView(_ tableView: UITableView, estimatedHeightForRowAt indexPath: IndexPath) -> CGFloat {
+//        return 30
+//    }
 }
 
 extension NewConversationViewController : UISearchBarDelegate {
@@ -127,37 +132,34 @@ extension NewConversationViewController : UISearchBarDelegate {
         }
         
         DatabaseManager.shared.fetchAllUsers { [weak self] result in
+            guard let self = self else {return}
             switch  result {
             case .success(let users):
-                self?.hasFetched = true
-                self?.fetchedUsers = users
-                self?.filterSearchResults(with: query)
+                self.hasFetched = true
+                self.fetchedUsers = users
+                self.filterSearchResults(with: query)
             case .failure(let error):
                 print(error)
-                self?.progressIndicator.dismiss()
-                self?.noResultsLabel.isHidden = false
-                self?.tableView.isHidden = true
-                self?.searchBar.resignFirstResponder()
+                self.progressIndicator.dismiss()
+                self.noResultsLabel.isHidden = false
+                self.tableView.isHidden = true
+                self.searchBar.resignFirstResponder()
             }
         }
     }
     
     private func filterSearchResults(with query: String) {
-        let results: [[String:String]] = self.fetchedUsers.filter { dic -> Bool in
-            guard let name = dic["name"]?.lowercased(),
-                  let currentEmail = UserDefaults.standard.value(forKey: "email") as? String else {
-                return false
-            }
-            if DatabaseManager.createDataBaseEmail(with: currentEmail) == dic["id"] {
-                return false
-            } else {
-                return name.hasPrefix(query.lowercased())
-            }
+        let results: [User] = self.fetchedUsers.filter { user -> Bool in
+            guard let currentEmailId = DatabaseManager.getCurrentUserID else {  return false  }
+            let name = user.name.lowercased()
+            if currentEmailId == user.id { return false }
+            else { return name.hasPrefix(query.lowercased()) }
         }
         self.results = results
         self.progressIndicator.dismiss()
         updateUIWithSearchData()
     }
+    
     
     private func updateUIWithSearchData() {
         if self.results.isEmpty {
